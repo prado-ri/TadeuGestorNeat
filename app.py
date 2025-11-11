@@ -1,16 +1,19 @@
-# Versão: v90 (Otimização: Limite de 500 no Dashboard + Correção Spinner com Cookie)
+# Versão: v91 (Otimizações de Performance e Usabilidade)
 import os
 import io
 import zipfile
 import csv
 import json
 import shutil
+import logging
+import threading
+from functools import lru_cache
+from contextlib import contextmanager
 import pandas as pd
 import xml.etree.ElementTree as ET
-from xml.dom import minidom
-# v90: make_response foi adicionado para cookies
+# v91: make_response foi adicionado para cookies
 from flask import Flask, render_template, request, redirect, url_for, flash, get_flashed_messages, session, make_response, send_file
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base, joinedload, selectinload
 from sqlalchemy.pool import StaticPool
@@ -24,9 +27,33 @@ if not os.path.exists(DATABASE_FOLDER):
 
 TEMPLATE_DB_NAME = 'Neat7_template_v68.db'
 
+# v91: Configuração de Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('neat_gestor.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'uma-chave-secreta-muito-forte-v90' 
-translator = Translator()
+app.config['SECRET_KEY'] = 'uma-chave-secreta-muito-forte-v90'
+
+# v91: Singleton do Translator com thread-safety
+_translator = None
+_translator_lock = threading.Lock()
+
+def get_translator():
+    """Retorna instância singleton do Translator (thread-safe)"""
+    global _translator
+    if _translator is None:
+        with _translator_lock:
+            if _translator is None:
+                _translator = Translator()
+                logger.info("Translator instanciado")
+    return _translator
 
 # --- Definição dos Modelos (v68+) ---
 Base = declarative_base()
@@ -128,24 +155,60 @@ class Interlocks(Base):
     __table_args__ = (UniqueConstraint('phase_id', 'numero_interlock'),)
 
 engines = {}
-def get_db_session(project_name):
+
+def get_engine(project_name):
+    """Retorna ou cria engine para o projeto especificado"""
     db_path = os.path.join(DATABASE_FOLDER, project_name)
-    if not os.path.exists(db_path): raise FileNotFoundError(f"Base de dados {project_name} não encontrada.")
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(f"Base de dados {project_name} não encontrada.")
     if project_name not in engines:
-        engine = create_engine(f'sqlite:///{db_path}', poolclass=StaticPool, connect_args={'check_same_thread': False})
+        engine = create_engine(
+            f'sqlite:///{db_path}',
+            poolclass=StaticPool,
+            connect_args={'check_same_thread': False},
+            echo=False  # v91: Desabilitar echo para melhor performance
+        )
         Base.metadata.create_all(engine)
         engines[project_name] = engine
-    return sessionmaker(bind=engines[project_name])()
+        logger.info(f"Engine criada para projeto: {project_name}")
+    return engines[project_name]
 
+@contextmanager
+def get_db_session(project_name):
+    """Context manager para sessões de DB (previne leaks de memória)"""
+    engine = get_engine(project_name)
+    session = sessionmaker(bind=engine)()
+    try:
+        yield session
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Erro na sessão DB para {project_name}: {e}")
+        raise
+    finally:
+        session.close()
+
+@lru_cache(maxsize=2000)
 def auto_translate(text_pt):
-    if not text_pt: return "", ""
-    try: return Translator().translate(text_pt, src='pt', dest='en').text, Translator().translate(text_pt, src='pt', dest='es').text
-    except: return text_pt, text_pt
+    """Traduz texto PT para EN e ES com cache (v91: otimizado)"""
+    if not text_pt or not text_pt.strip():
+        return "", ""
+    try:
+        translator = get_translator()
+        text_clean = text_pt.strip()
+        en_text = translator.translate(text_clean, src='pt', dest='en', timeout=10).text
+        es_text = translator.translate(text_clean, src='pt', dest='es', timeout=10).text
+        logger.debug(f"Traduzido: {text_clean[:30]}...")
+        return en_text, es_text
+    except Exception as e:
+        logger.warning(f"Falha na tradução de '{text_pt[:30]}...': {e}")
+        return text_pt, text_pt
 
 def add_xml_text_node(parent, tag, text):
     if text: ET.SubElement(parent, tag).text = text
 
 def generate_steps_xml(phase):
+    """Gera XML de steps (v91: otimizado sem re-parsing)"""
     root = ET.Element('Translations')
     passos_dict = {p.numero_passo: p for p in phase.passos}
     for locale_id, lang_key, prefix in [("1033", "en", "zzEnStep"), ("1046", "pt", "zzStep"), ("3082", "es", "zzEsStep")]:
@@ -160,7 +223,12 @@ def generate_steps_xml(phase):
                 elif lang_key == "es": desc = passo_obj.descricao_es or passo_obj.descricao_pt or desc
             step_node = ET.SubElement(steps_node, 'Step')
             add_xml_text_node(step_node, 'Number', num); add_xml_text_node(step_node, 'Description', desc)
-    return minidom.parseString(ET.tostring(root, 'utf-8')).toprettyxml(indent="  ", encoding="UTF-8")
+
+    # v91: Escrever direto sem re-parsing (melhor performance)
+    tree = ET.ElementTree(root)
+    output = io.BytesIO()
+    tree.write(output, encoding='UTF-8', xml_declaration=True)
+    return output.getvalue()
 
 def parse_logic_from_text(text):
     if not text or pd.isna(text): return None, "N/A"
@@ -217,21 +285,38 @@ def export_master_transitions(dbsession):
             trans_data_final.append(row_data_final)
     return pd.DataFrame(trans_data_final, columns=csv_header_final)
 
-# --- FUNÇÃO IMPORTAÇÃO/MERGE (Mantidas v74) ---
+# --- FUNÇÃO IMPORTAÇÃO/MERGE (v91: melhorado com logging) ---
 def import_master_excel(dbsession, file_storage):
-    dbsession.query(TransitionConditions).delete(); dbsession.query(TransitionRowDescriptions).delete()
-    dbsession.query(Passos).delete(); dbsession.query(Parametros).delete()
-    dbsession.query(Interlocks).delete(); dbsession.query(Phases).delete()
-    dbsession.query(Unidades).delete(); dbsession.query(Areas).delete()
+    """Importa Master Excel substituindo todos os dados (v91: com logging)"""
+    logger.info("Iniciando importação total (substituição)")
+    dbsession.query(TransitionConditions).delete()
+    dbsession.query(TransitionRowDescriptions).delete()
+    dbsession.query(Passos).delete()
+    dbsession.query(Parametros).delete()
+    dbsession.query(Interlocks).delete()
+    dbsession.query(Phases).delete()
+    dbsession.query(Unidades).delete()
+    dbsession.query(Areas).delete()
     dbsession.commit()
-    try: merge_master_excel(dbsession, io.BytesIO(file_storage.read())) 
-    except Exception as e: dbsession.rollback(); raise Exception(f"Erro na importação: {e}")
+    logger.info("Dados antigos removidos")
+    try:
+        merge_master_excel(dbsession, io.BytesIO(file_storage.read()))
+        logger.info("Importação total concluída com sucesso")
+    except Exception as e:
+        logger.error(f"Erro na importação total: {e}")
+        dbsession.rollback()
+        raise Exception(f"Erro na importação: {e}")
 
 def merge_master_excel(dbsession, file_storage):
+    """Mescla dados do Excel sem apagar existentes (v91: otimizado)"""
+    logger.info("Iniciando mesclagem de dados")
     try:
-        if hasattr(file_storage, 'seek'): file_storage.seek(0)
-        else: file_storage = io.BytesIO(file_storage.read())
+        if hasattr(file_storage, 'seek'):
+            file_storage.seek(0)
+        else:
+            file_storage = io.BytesIO(file_storage.read())
         xls_file = pd.ExcelFile(file_storage)
+        logger.info(f"Planilhas encontradas: {xls_file.sheet_names}")
         ac_obj={a.nome_area:a for a in dbsession.query(Areas).all()}; uc_obj={(u.area.nome_area,u.nome_unidade):u for u in dbsession.query(Unidades).options(joinedload(Unidades.area)).all()}; pc_obj={(p.unidade.area.nome_area,p.unidade.nome_unidade,p.nome_phase):p for p in dbsession.query(Phases).options(joinedload(Phases.unidade).joinedload(Unidades.area)).all()}
         existing_areas_set = set(ac_obj.keys()); existing_units_set = {u_val.nome_unidade for u_val in uc_obj.values()}; existing_phases_set = {(p_val.unidade_id, p_val.nome_phase) for p_val in pc_obj.values()} 
         param_c_set = {(p.phase_id, p.classe_param, p.numero_param) for p in dbsession.query(Parametros.phase_id, Parametros.classe_param, Parametros.numero_param).all()}
@@ -286,8 +371,11 @@ def merge_master_excel(dbsession, file_storage):
                             txt_val, log_val = parse_logic_from_text(r_tr[col_name_tr]); en_val, es_val = auto_translate(txt_val)
                             dbsession.add(TransitionConditions(phase_id=pid_val, step_index=step_col_idx_imp, condition_row=rnum_val, condition_text_pt=txt_val, condition_logic=log_val, condition_text_en=en_val, condition_text_es=es_val)); tc_c_set.add((pid_val, step_col_idx_imp, rnum_val))
         dbsession.commit()
+        logger.info("Mesclagem de dados concluída com sucesso")
     except Exception as e:
-        dbsession.rollback(); raise Exception(f"Erro durante a mesclagem: {e}")
+        logger.error(f"Erro durante a mesclagem: {e}")
+        dbsession.rollback()
+        raise Exception(f"Erro durante a mesclagem: {e}")
 
 # --- ROTAS ---
 @app.route('/', methods=['GET', 'POST'])
@@ -314,7 +402,10 @@ def delete_project(project_name):
 
 @app.route('/project/<project_name>/', methods=['GET', 'POST'])
 def index(project_name):
-    dbsession = get_db_session(project_name)
+    with get_db_session(project_name) as dbsession:
+        return _handle_index(project_name, dbsession)
+
+def _handle_index(project_name, dbsession):
     if request.method == 'POST':
         try:
             if 'form_import_master' in request.files:
@@ -474,91 +565,178 @@ def index(project_name):
                 resp.set_cookie('file_downloaded', 'true', path='/'); return resp
 
             elif 'form_remove_area' in request.form:
-                 a = dbsession.get(Areas, request.form.get('area_id')); 
-                 if a: dbsession.delete(a); dbsession.commit(); flash("Removido.",'success')
+                 a = dbsession.get(Areas, request.form.get('area_id'));
+                 if a: dbsession.delete(a); flash("Removido.",'success')
             elif 'form_remove_unidade' in request.form:
-                 u = dbsession.get(Unidades, request.form.get('unidade_id')); 
-                 if u: dbsession.delete(u); dbsession.commit(); flash("Removido.",'success')
+                 u = dbsession.get(Unidades, request.form.get('unidade_id'));
+                 if u: dbsession.delete(u); flash("Removido.",'success')
             elif 'form_remove_phase' in request.form:
-                 p = dbsession.get(Phases, request.form.get('phase_id')); 
-                 if p: dbsession.delete(p); dbsession.commit(); flash("Removido.",'success')
-        except Exception as e: dbsession.rollback(); flash(f"Erro: {e}", 'error')
-        finally: dbsession.close()
+                 p = dbsession.get(Phases, request.form.get('phase_id'));
+                 if p: dbsession.delete(p); flash("Removido.",'success')
+        except Exception as e:
+            logger.error(f"Erro em index POST para {project_name}: {e}")
+            flash(f"Erro: {str(e)}", 'error')
         return redirect(url_for('index', project_name=project_name, tipo_filtrado=request.form.get('tipo_filtrado')))
 
-    try:
-        aid = request.args.get('area_filtrada_id', type=int); uid = request.args.get('unidade_filtrada_id', type=int); tipo = request.args.get('tipo_filtrado')
-        q_u = dbsession.query(Unidades).options(joinedload(Unidades.area)); q_p = dbsession.query(Phases).join(Unidades).join(Areas).options(joinedload(Phases.unidade).joinedload(Unidades.area))
-        if aid: q_u=q_u.filter(Unidades.area_id==aid); q_p=q_p.filter(Unidades.area_id==aid)
-        if uid: q_p=q_p.filter(Phases.unidade_id==uid)
-        if tipo: q_p=q_p.filter(Phases.tipo_phase==tipo)
-        phases = q_p.limit(2000).all() if not (aid or uid or tipo) else q_p.all()
-        return render_template('index.html', project_name=project_name, todas_areas=dbsession.query(Areas).all(), unidades=q_u.all(), phases=phases, area_filtrada_id=aid, unidade_filtrada_id=uid, tipo_filtrado=tipo)
-    finally: dbsession.close()
+    # v91: GET com paginação otimizada
+    aid = request.args.get('area_filtrada_id', type=int)
+    uid = request.args.get('unidade_filtrada_id', type=int)
+    tipo = request.args.get('tipo_filtrado')
+    page = request.args.get('page', 1, type=int)
+    per_page = 500  # v91: Paginação de 500 itens
+
+    q_u = dbsession.query(Unidades).options(joinedload(Unidades.area))
+    q_p = dbsession.query(Phases).join(Unidades).join(Areas).options(
+        joinedload(Phases.unidade).joinedload(Unidades.area)
+    )
+
+    if aid:
+        q_u = q_u.filter(Unidades.area_id == aid)
+        q_p = q_p.filter(Unidades.area_id == aid)
+    if uid:
+        q_p = q_p.filter(Phases.unidade_id == uid)
+    if tipo:
+        q_p = q_p.filter(Phases.tipo_phase == tipo)
+
+    # v91: Paginação apenas quando não há filtros (melhor UX)
+    total_phases = q_p.count()
+    if not (aid or uid or tipo) and total_phases > per_page:
+        phases = q_p.offset((page - 1) * per_page).limit(per_page).all()
+        has_more = total_phases > (page * per_page)
+    else:
+        phases = q_p.all()
+        has_more = False
+
+    logger.info(f"Dashboard {project_name}: {len(phases)} phases carregadas (página {page})")
+
+    return render_template(
+        'index.html',
+        project_name=project_name,
+        todas_areas=dbsession.query(Areas).all(),
+        unidades=q_u.all(),
+        phases=phases,
+        area_filtrada_id=aid,
+        unidade_filtrada_id=uid,
+        tipo_filtrado=tipo,
+        page=page,
+        has_more=has_more,
+        total_phases=total_phases
+    )
 
 # --- ROTAS CRUD (INCLUÍDAS) ---
 @app.route('/project/<project_name>/add_area', methods=['GET', 'POST'])
 def add_area(project_name):
-    ds = get_db_session(project_name)
     if request.method == 'POST':
-        try: ds.add(Areas(nome_area=request.form['nome_area'])); ds.commit(); return redirect(url_for('index', project_name=project_name))
-        except Exception as e: ds.rollback(); flash(f"Erro: {e}", 'error')
+        try:
+            with get_db_session(project_name) as ds:
+                ds.add(Areas(nome_area=request.form['nome_area']))
+            logger.info(f"Área '{request.form['nome_area']}' adicionada ao projeto {project_name}")
+            return redirect(url_for('index', project_name=project_name))
+        except Exception as e:
+            logger.error(f"Erro ao adicionar área em {project_name}: {e}")
+            flash(f"Erro: {str(e)}", 'error')
     return render_template('add_area.html', project_name=project_name)
 
 @app.route('/project/<project_name>/edit_area/<int:area_id>', methods=['GET', 'POST'])
 def edit_area(project_name, area_id):
-    ds = get_db_session(project_name); a = ds.get(Areas, area_id)
-    if request.method == 'POST':
-        try: a.nome_area = request.form.get('nome_area'); ds.commit(); return redirect(url_for('index', project_name=project_name))
-        except Exception as e: ds.rollback(); flash(f"Erro: {e}", 'error')
-    return render_template('edit_area.html', area=a, project_name=project_name)
+    with get_db_session(project_name) as ds:
+        a = ds.get(Areas, area_id)
+        if request.method == 'POST':
+            try:
+                a.nome_area = request.form.get('nome_area')
+                logger.info(f"Área {area_id} editada no projeto {project_name}")
+                return redirect(url_for('index', project_name=project_name))
+            except Exception as e:
+                logger.error(f"Erro ao editar área {area_id} em {project_name}: {e}")
+                flash(f"Erro: {str(e)}", 'error')
+        return render_template('edit_area.html', area=a, project_name=project_name)
 
 @app.route('/project/<project_name>/add_unidade', methods=['GET', 'POST'])
 def add_unidade(project_name):
-    ds = get_db_session(project_name)
-    if request.method == 'POST':
-        try: ds.add(Unidades(nome_unidade=request.form['nome_unidade'], area_id=request.form.get('area_id'))); ds.commit(); return redirect(url_for('index', project_name=project_name))
-        except Exception as e: ds.rollback(); flash(f"Erro: {e}", 'error')
-    return render_template('add_unidade.html', todas_areas=ds.query(Areas).all(), project_name=project_name)
+    with get_db_session(project_name) as ds:
+        if request.method == 'POST':
+            try:
+                ds.add(Unidades(nome_unidade=request.form['nome_unidade'], area_id=request.form.get('area_id')))
+                logger.info(f"Unidade '{request.form['nome_unidade']}' adicionada ao projeto {project_name}")
+                return redirect(url_for('index', project_name=project_name))
+            except Exception as e:
+                logger.error(f"Erro ao adicionar unidade em {project_name}: {e}")
+                flash(f"Erro: {str(e)}", 'error')
+        return render_template('add_unidade.html', todas_areas=ds.query(Areas).all(), project_name=project_name)
 
 @app.route('/project/<project_name>/edit_unidade/<int:unidade_id>', methods=['GET', 'POST'])
 def edit_unidade(project_name, unidade_id):
-    ds = get_db_session(project_name); u = ds.get(Unidades, unidade_id)
-    if request.method == 'POST':
-        try: u.nome_unidade = request.form.get('nome_unidade'); u.area_id = request.form.get('area_id'); ds.commit(); return redirect(url_for('index', project_name=project_name))
-        except Exception as e: ds.rollback(); flash(f"Erro: {e}", 'error')
-    return render_template('edit_unidade.html', unidade=u, todas_areas=ds.query(Areas).all(), project_name=project_name)
+    with get_db_session(project_name) as ds:
+        u = ds.get(Unidades, unidade_id)
+        if request.method == 'POST':
+            try:
+                u.nome_unidade = request.form.get('nome_unidade')
+                u.area_id = request.form.get('area_id')
+                logger.info(f"Unidade {unidade_id} editada no projeto {project_name}")
+                return redirect(url_for('index', project_name=project_name))
+            except Exception as e:
+                logger.error(f"Erro ao editar unidade {unidade_id} em {project_name}: {e}")
+                flash(f"Erro: {str(e)}", 'error')
+        return render_template('edit_unidade.html', unidade=u, todas_areas=ds.query(Areas).all(), project_name=project_name)
 
 @app.route('/project/<project_name>/add_phase', methods=['GET', 'POST'])
 def add_phase(project_name):
-    ds = get_db_session(project_name)
-    if request.method == 'POST':
-        try:
-            ds.add(Phases(unidade_id=request.form['unidade_id'], nome_phase=f"{request.form['tipo_phase']}{request.form['nome_phase']}", tipo_phase=request.form['tipo_phase'], descricao_pt=request.form.get('descricao_pt')))
-            ds.commit(); return redirect(url_for('index', project_name=project_name))
-        except Exception as e: ds.rollback(); flash(f"Erro: {e}", 'error')
-    return render_template('add_phase.html', todas_unidades=ds.query(Unidades).options(joinedload(Unidades.area)).all(), project_name=project_name)
+    with get_db_session(project_name) as ds:
+        if request.method == 'POST':
+            try:
+                ds.add(Phases(
+                    unidade_id=request.form['unidade_id'],
+                    nome_phase=f"{request.form['tipo_phase']}{request.form['nome_phase']}",
+                    tipo_phase=request.form['tipo_phase'],
+                    descricao_pt=request.form.get('descricao_pt')
+                ))
+                logger.info(f"Phase '{request.form['nome_phase']}' adicionada ao projeto {project_name}")
+                return redirect(url_for('index', project_name=project_name))
+            except Exception as e:
+                logger.error(f"Erro ao adicionar phase em {project_name}: {e}")
+                flash(f"Erro: {str(e)}", 'error')
+        return render_template('add_phase.html', todas_unidades=ds.query(Unidades).options(joinedload(Unidades.area)).all(), project_name=project_name)
 
 @app.route('/project/<project_name>/edit_phase/<int:phase_id>', methods=['GET', 'POST'])
 def edit_phase(project_name, phase_id):
-    ds = get_db_session(project_name); p = ds.get(Phases, phase_id)
-    if request.method == 'POST':
-        try:
-            tipo = request.form.get('tipo_phase'); nome_input = request.form.get('nome_phase')
-            if nome_input.startswith(tipo): nome_input = nome_input[len(tipo):]
-            p.nome_phase = f"{tipo}{nome_input}"
-            p.tipo_phase = request.form.get('tipo_phase'); p.unidade_id = request.form.get('unidade_id'); p.descricao_pt = request.form.get('descricao_pt')
-            p.descricao_en = request.form.get('descricao_en') or auto_translate(p.descricao_pt)[0]; p.descricao_es = request.form.get('descricao_es') or auto_translate(p.descricao_pt)[1]
-            ds.commit(); return redirect(url_for('index', project_name=project_name))
-        except Exception as e: ds.rollback(); flash(f"Erro: {e}", 'error')
-    return render_template('edit_phase.html', phase=p, todas_unidades=ds.query(Unidades).options(joinedload(Unidades.area)).all(), project_name=project_name)
+    with get_db_session(project_name) as ds:
+        p = ds.get(Phases, phase_id)
+        if request.method == 'POST':
+            try:
+                tipo = request.form.get('tipo_phase')
+                nome_input = request.form.get('nome_phase')
+                if nome_input.startswith(tipo):
+                    nome_input = nome_input[len(tipo):]
+                p.nome_phase = f"{tipo}{nome_input}"
+                p.tipo_phase = tipo
+                p.unidade_id = request.form.get('unidade_id')
+                p.descricao_pt = request.form.get('descricao_pt')
+                p.descricao_en = request.form.get('descricao_en') or auto_translate(p.descricao_pt)[0]
+                p.descricao_es = request.form.get('descricao_es') or auto_translate(p.descricao_pt)[1]
+                logger.info(f"Phase {phase_id} editada no projeto {project_name}")
+                return redirect(url_for('index', project_name=project_name))
+            except Exception as e:
+                logger.error(f"Erro ao editar phase {phase_id} em {project_name}: {e}")
+                flash(f"Erro: {str(e)}", 'error')
+        return render_template('edit_phase.html', phase=p, todas_unidades=ds.query(Unidades).options(joinedload(Unidades.area)).all(), project_name=project_name)
 
 @app.route('/project/<project_name>/phase/<int:phase_id>/', methods=['GET', 'POST'])
 def phase_detail(project_name, phase_id):
-    ds = get_db_session(project_name)
-    phase = ds.query(Phases).options(joinedload(Phases.unidade).joinedload(Unidades.area), selectinload(Phases.parametros), selectinload(Phases.passos), selectinload(Phases.transition_conditions), selectinload(Phases.transition_row_descriptions), selectinload(Phases.interlocks)).get(phase_id)
-    if not phase: ds.close(); return "Phase não encontrada", 404
-    tab = request.form.get('target_tab', 'parametros') if request.method == 'POST' else request.args.get('tab', 'parametros')
+    with get_db_session(project_name) as ds:
+        phase = ds.query(Phases).options(
+            joinedload(Phases.unidade).joinedload(Unidades.area),
+            selectinload(Phases.parametros),
+            selectinload(Phases.passos),
+            selectinload(Phases.transition_conditions),
+            selectinload(Phases.transition_row_descriptions),
+            selectinload(Phases.interlocks)
+        ).get(phase_id)
+        if not phase:
+            return "Phase não encontrada", 404
+        tab = request.form.get('target_tab', 'parametros') if request.method == 'POST' else request.args.get('tab', 'parametros')
+        return _handle_phase_detail(project_name, phase_id, ds, phase, tab)
+
+def _handle_phase_detail(project_name, phase_id, ds, phase, tab):
 
     if request.method == 'POST':
         try:
@@ -622,18 +800,32 @@ def phase_detail(project_name, phase_id):
                         s_en = s_en or s_en_a; s_es = s_es or s_es_a; p_en = p_en or p_en_a; p_es = p_es or p_es_a
                         if il_obj: il_obj.seguranca_pt=s_pt; il_obj.seguranca_en=s_en; il_obj.seguranca_es=s_es; il_obj.processo_pt=p_pt; il_obj.processo_en=p_en; il_obj.processo_es=p_es
                         else: ds.add(Interlocks(phase_id=phase.phase_id, numero_interlock=i_loop, seguranca_pt=s_pt, seguranca_en=s_en, seguranca_es=s_es, processo_pt=p_pt, processo_en=p_en, processo_es=p_es))
-                ds.commit(); flash("Interlocks salvos.", 'success')
-        except Exception as e: ds.rollback(); flash(f"Erro: {e}", 'error')
-        finally: ds.close()
+                flash("Interlocks salvos.", 'success')
+                logger.info(f"Interlocks salvos para phase {phase_id}")
+        except Exception as e:
+            logger.error(f"Erro ao salvar dados da phase {phase_id}: {e}")
+            flash(f"Erro: {str(e)}", 'error')
         return redirect(url_for('phase_detail', project_name=project_name, phase_id=phase_id, tab=tab))
 
-    try:
-        trans_grelha = {}
-        for c in phase.transition_conditions:
-             if c.step_index not in trans_grelha: trans_grelha[c.step_index] = {}
-             trans_grelha[c.step_index][c.condition_row] = c
-        return render_template('phase_detail.html', project_name=project_name, phase=phase, parametros=phase.parametros, passos_dict={p.numero_passo: p for p in phase.passos}, trans_grelha=trans_grelha, trans_row_descs={d.row_number: d for d in phase.transition_row_descriptions}, interlocks_dict={i.numero_interlock: i for i in phase.interlocks}, last_classe=session.get('last_classe', 'PE'), current_tab=tab)
-    finally: ds.close()
+    # GET request
+    trans_grelha = {}
+    for c in phase.transition_conditions:
+        if c.step_index not in trans_grelha:
+            trans_grelha[c.step_index] = {}
+        trans_grelha[c.step_index][c.condition_row] = c
+
+    return render_template(
+        'phase_detail.html',
+        project_name=project_name,
+        phase=phase,
+        parametros=phase.parametros,
+        passos_dict={p.numero_passo: p for p in phase.passos},
+        trans_grelha=trans_grelha,
+        trans_row_descs={d.row_number: d for d in phase.transition_row_descriptions},
+        interlocks_dict={i.numero_interlock: i for i in phase.interlocks},
+        last_classe=session.get('last_classe', 'PE'),
+        current_tab=tab
+    )
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
