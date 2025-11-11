@@ -156,7 +156,50 @@
         <div class="hierarchy-container">
             <div class="col card hierarchy-col"><div class="hierarchy-header"><h2>Áreas ({{ todas_areas|length }})</h2><a href="{{ url_for('add_area', project_name=project_name) }}" class="btn btn-neutral btn-sm"><i class="fas fa-plus"></i> Add</a></div><div class="table-wrapper"><table><thead><tr><th>Nome</th><th style="width: 70px;"></th></tr></thead><tbody>{% for area in todas_areas %}<tr><td><strong>{{ area.nome_area }}</strong></td><td style="text-align: right;"><a href="{{ url_for('edit_area', project_name=project_name, area_id=area.area_id) }}" class="btn btn-neutral btn-sm" title="Editar"><i class="fas fa-pen"></i></a><form class="remove-form" action="{{ url_for('index', project_name=project_name) }}" method="POST"><input type="hidden" name="area_id" value="{{ area.area_id }}"><button type="submit" name="form_remove_area" value="remover" class="btn btn-neutral btn-sm danger-hover" title="Remover" onclick="return confirm('Remover Área \'{{ area.nome_area }}\'?')"><i class="fas fa-trash"></i></button></form></td></tr>{% endfor %}</tbody></table></div></div>
             <div class="col card hierarchy-col"><div class="hierarchy-header"><h2>Unidades ({{ unidades|length }})</h2><a href="{{ url_for('add_unidade', project_name=project_name) }}" class="btn btn-neutral btn-sm"><i class="fas fa-plus"></i> Add</a></div><div class="table-wrapper"><table><thead><tr><th>Nome</th><th>Área</th><th style="width: 70px;"></th></tr></thead><tbody>{% for unidade in unidades %}<tr><td><strong>{{ unidade.nome_unidade }}</strong></td><td style="color: #777;">{{ unidade.area.nome_area }}</td><td style="text-align: right;"><a href="{{ url_for('edit_unidade', project_name=project_name, unidade_id=unidade.unidade_id) }}" class="btn btn-neutral btn-sm" title="Editar"><i class="fas fa-pen"></i></a><form class="remove-form" action="{{ url_for('index', project_name=project_name) }}" method="POST"><input type="hidden" name="unidade_id" value="{{ unidade.unidade_id }}"><button type="submit" name="form_remove_unidade" value="remover" class="btn btn-neutral btn-sm danger-hover" title="Remover" onclick="return confirm('Remover Unidade \'{{ unidade.nome_unidade }}\'?')"><i class="fas fa-trash"></i></button></form></td></tr>{% endfor %}</tbody></table></div></div>
-            <div class="col card hierarchy-col" style="flex: 1.5;"><div class="hierarchy-header"><h2>Phases ({{ phases|length }})</h2><a href="{{ url_for('add_phase', project_name=project_name) }}" class="btn btn-neutral btn-sm"><i class="fas fa-plus"></i> Add</a></div><div class="table-wrapper"><table><thead><tr><th>Nome</th><th>Tipo</th><th>Unidade</th><th style="width: 70px;"></th></tr></thead><tbody>{% for phase in phases %}<tr><td><a href="{{ url_for('phase_detail', project_name=project_name, phase_id=phase.phase_id) }}" style="font-weight: 600; color: var(--primary);">{{ phase.nome_phase }}</a></td><td><span class="type-badge">{{ phase.tipo_phase }}</span></td><td style="color: #777;">{{ phase.unidade.nome_unidade }}</td><td style="text-align: right;"><a href="{{ url_for('edit_phase', project_name=project_name, phase_id=phase.phase_id) }}" class="btn btn-neutral btn-sm" title="Editar"><i class="fas fa-pen"></i></a><form class="remove-form" action="{{ url_for('index', project_name=project_name) }}" method="POST"><input type="hidden" name="phase_id" value="{{ phase.phase_id }}"><button type="submit" name="form_remove_phase" value="remover" class="btn btn-neutral btn-sm danger-hover" title="Remover" onclick="return confirm('Remover Phase \'{{ phase.nome_phase }}\'?')"><i class="fas fa-trash"></i></button></form></td></tr>{% endfor %}</tbody></table></div></div>
+            <div class="col card hierarchy-col" style="flex: 1.5;">
+                <div class="hierarchy-header">
+                    <h2>Phases ({{ total_phases|default(phases|length) }})</h2>
+                    <a href="{{ url_for('add_phase', project_name=project_name) }}" class="btn btn-neutral btn-sm"><i class="fas fa-plus"></i> Add</a>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr><th>Nome</th><th>Tipo</th><th>Unidade</th><th style="width: 70px;"></th></tr>
+                        </thead>
+                        <tbody>
+                            {% for phase in phases %}
+                            <tr>
+                                <td><a href="{{ url_for('phase_detail', project_name=project_name, phase_id=phase.phase_id) }}" style="font-weight: 600; color: var(--primary);">{{ phase.nome_phase }}</a></td>
+                                <td><span class="type-badge">{{ phase.tipo_phase }}</span></td>
+                                <td style="color: #777;">{{ phase.unidade.nome_unidade }}</td>
+                                <td style="text-align: right;">
+                                    <a href="{{ url_for('edit_phase', project_name=project_name, phase_id=phase.phase_id) }}" class="btn btn-neutral btn-sm" title="Editar"><i class="fas fa-pen"></i></a>
+                                    <form class="remove-form" action="{{ url_for('index', project_name=project_name) }}" method="POST">
+                                        <input type="hidden" name="phase_id" value="{{ phase.phase_id }}">
+                                        <button type="submit" name="form_remove_phase" value="remover" class="btn btn-neutral btn-sm danger-hover" title="Remover" onclick="return confirm('Remover Phase \'{{ phase.nome_phase }}\'?')"><i class="fas fa-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if has_more or (page|default(1) > 1) %}
+                <div style="padding: 10px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color);">
+                    {% if page|default(1) > 1 %}
+                    <a href="{{ url_for('index', project_name=project_name, page=page-1, area_filtrada_id=area_filtrada_id, unidade_filtrada_id=unidade_filtrada_id, tipo_filtrado=tipo_filtrado) }}" class="btn btn-neutral btn-sm"><i class="fas fa-arrow-left"></i> Anterior</a>
+                    {% else %}
+                    <span></span>
+                    {% endif %}
+                    <span style="color: var(--text-secondary); font-size: 0.9em;">Página {{ page|default(1) }}</span>
+                    {% if has_more %}
+                    <a href="{{ url_for('index', project_name=project_name, page=page+1, area_filtrada_id=area_filtrada_id, unidade_filtrada_id=unidade_filtrada_id, tipo_filtrado=tipo_filtrado) }}" class="btn btn-neutral btn-sm">Próxima <i class="fas fa-arrow-right"></i></a>
+                    {% else %}
+                    <span></span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
         </div>
     </div>
     
