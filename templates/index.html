@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard: {{ project_name }}</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --header-bg: #1b3a57; --primary: #205081; --primary-hover: #163b65;
+            --bg-main: #f6f8fa; --bg-card: #ffffff; --border-color: #d0d7de;
+            --text-primary: #24292f; --text-secondary: #57606a;
+            --success: #2ea44f; --danger: #cf222e; --warning: #d97706;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: var(--bg-main); color: var(--text-primary); font-size: 13px; }
+        .top-bar { background-color: var(--header-bg); color: #fff; padding: 12px 20px; display: flex; align-items: center; border-bottom: 3px solid #3a6ea5; }
+        .top-bar h1 { margin: 0; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; }
+        .top-bar img { height: 24px; margin-right: 12px; }
+        .top-bar a { color: #fff; text-decoration: none; opacity: 0.9; }
+        .top-bar .separator { margin: 0 10px; opacity: 0.6; }
+        .main-content { padding: 20px; max-width: 1600px; margin: 0 auto; }
+        
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); padding: 15px; display: flex; flex-direction: column; }
+        .card h2 { margin-top: 0; margin-bottom: 15px; font-size: 1.1rem; color: var(--header-bg); border-bottom: 2px solid var(--bg-main); padding-bottom: 8px; font-weight: 600; }
+        
+        .top-actions-row { display: grid; grid-template-columns: 1.3fr 2fr; gap: 20px; margin-bottom: 20px; align-items: stretch; }
+        .card-container { display: flex; flex-direction: column; }
+        .card-container .card { height: 100%; }
+
+        .action-box { border-top: 4px solid var(--primary); }
+        .box-content { flex: 1; display: flex; flex-direction: column; gap: 15px; }
+        
+        /* Master Data Layout */
+        .master-top { flex: 0 0 auto; }
+        .master-bottom-row { display: flex; gap: 15px; flex: 1; }
+        .master-bottom-col { flex: 1; display: flex; flex-direction: column; }
+        .master-section { padding: 12px; background: #f8f9fa; border: 1px solid var(--border-color); border-radius: 3px; display: flex; flex-direction: column; justify-content: space-between; height: 100%; box-sizing: border-box; }
+        .master-section strong { color: var(--primary); display: block; margin-bottom: 5px; font-size: 1.05em; }
+        .master-section p { margin: 0 0 10px 0; color: var(--text-secondary); font-size: 0.9em; flex-grow: 1; }
+        .master-section form { margin-top: auto; }
+
+        .archestra-content { justify-content: flex-start; }
+        .export-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: auto; }
+        .export-separator { grid-column: 1 / -1; font-size: 0.85em; color: var(--text-secondary); font-weight: 600; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid var(--border-color); }
+
+        /* BOTÕES */
+        .btn { padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 3px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; transition: 0.1s; color: var(--text-primary); background-color: #fff; }
+        .btn:hover { background-color: #f3f4f6; border-color: #8c959f; } .btn:active { background-color: #edeff2; }
+        .btn-primary { background-color: var(--primary); color: #fff; border: 1px solid var(--header-bg); } .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-outline-primary { background-color: #fff; color: var(--primary); border-color: var(--primary); } .btn-outline-primary:hover { background-color: #eef6fc; }
+        .btn-neutral { background-color: #fff; color: var(--text-secondary); } .btn-neutral:hover { color: var(--text-primary); background-color: #f6f8fa; }
+        .btn-neutral.danger-hover:hover { color: var(--danger); border-color: var(--danger); background-color: #fff5f5; }
+        .btn-full { width: 100%; } .btn-sm { padding: 4px 8px; font-size: 12px; }
+
+        /* FILTROS & HIERARQUIA */
+        .filter-bar { display: flex; gap: 15px; align-items: flex-end; background: #e6edf5; border: 1px solid #c0d3eb; padding: 12px 20px; border-radius: 3px; margin-bottom: 20px; }
+        .filter-item { flex: 1; } .filter-item label { font-weight: 600; font-size: 0.8rem; color: var(--header-bg); display: block; margin-bottom: 5px; text-transform: uppercase; } .filter-item select { width: 100%; padding: 6px; border: 1px solid var(--border-color); border-radius: 3px; } .filter-clear { margin-left: auto; }
+        .hierarchy-container { display: flex; gap: 20px; align-items: flex-start; } .hierarchy-col { flex: 1; min-width: 300px; display: flex; flex-direction: column; max-height: 75vh; }
+        .hierarchy-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 8px; background: #f1f3f5; border-radius: 3px; border: 1px solid var(--border-color); } .hierarchy-header h2 { margin: 0; border: none; padding: 0; font-size: 1rem; }
+        .table-wrapper { overflow-y: auto; flex: 1; border: 1px solid var(--border-color); border-radius: 3px; } table { width: 100%; border-collapse: collapse; font-size: 12px; } th { background: #e9ecef; position: sticky; top: 0; text-align: left; padding: 8px; border-bottom: 2px solid var(--border-color); color: var(--text-secondary); z-index: 1; } td { padding: 6px 8px; border-bottom: 1px solid #eee; vertical-align: middle; } tr:hover td { background-color: #f8f9fa; } .type-badge { background: #eaf5ff; color: #0969da; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: 600; border: 1px solid #d0e2ff; }
+        .flash { padding: 10px 15px; margin-bottom: 20px; border-radius: 3px; font-weight: 500; } .flash.success { background: #dafbe1; color: #1a7f37; border: 1px solid #2ea44f; } .flash.error { background: #ffebe9; color: #cf222e; border: 1px solid #ff8182; }
+        .remove-form { display: inline; }
+
+        /* LOADING */
+        .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(255, 255, 255, 0.85); display: flex; justify-content: center; align-items: center; flex-direction: column; z-index: 10000; opacity: 0; visibility: hidden; transition: opacity 0.3s; }
+        .loading-overlay.active { opacity: 1; visibility: visible; }
+        .spinner { border: 5px solid #f3f3f3; border-top: 5px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { margin-top: 20px; font-weight: 600; font-size: 1.2rem; color: var(--primary); }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loading-text">Processando...</div>
+    </div>
+    
+    <div class="top-bar">
+        <h1>
+            <img src="{{ url_for('static', filename='gea.png') }}" alt="NEAT Logo">
+            <a href="{{ url_for('select_project') }}">Gestor de Projetos NEAT</a> <span class="separator">/</span> {{ project_name }}
+        </h1>
+    </div>
+
+    <div class="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}{% endif %}{% endwith %}
+
+        <div class="top-actions-row">
+            <div class="card-container" style="flex: 1.2;">
+                <div class="card action-box">
+                    <h2><i class="fas fa-database"></i> Master Data (Edição Total)</h2>
+                    <div class="box-content">
+                        <div class="master-top">
+                            <div class="master-section">
+                                <strong>1. Exportar (Backup)</strong><p>Gera XLSX com TODAS as tabelas.</p>
+                                <form id="master-export-form" action="{{ url_for('index', project_name=project_name) }}" method="POST">
+                                    <input type="hidden" name="tipo_filtrado" value="{{ tipo_filtrado or '' }}"><input type="hidden" name="area_filtrada_id" value="{{ area_filtrada_id or '' }}"><input type="hidden" name="unidade_filtrada_id" value="{{ unidade_filtrada_id or '' }}">
+                                    <button type="submit" name="form_export_master_excel" value="exportar" class="btn btn-primary btn-full"><i class="fas fa-download"></i> Baixar Master XLSX</button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="master-bottom-row">
+                            <div class="master-bottom-col">
+                                <div class="master-section">
+                                    <strong>2. Mesclar</strong><p>Adiciona novos dados sem apagar.</p>
+                                    <form id="merge-form" action="{{ url_for('index', project_name=project_name) }}" method="POST" enctype="multipart/form-data">
+                                        <input type="file" name="form_merge_master" accept=".xlsx" required style="width: 100%; margin-bottom: 10px; font-size: 11px; padding: 4px;">
+                                        <button type="submit" name="merge_master_submit" class="btn btn-primary btn-full" onclick="return confirm('Tem a certeza?\n\nNovos dados serão ADICIONADOS.\nDados existentes serão MANTIDOS.')"><i class="fas fa-plus-circle"></i> Mesclar</button>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="master-bottom-col">
+                                <div class="master-section">
+                                    <strong>3. Substituir</strong><p>⚠️ APAGA TUDO e substitui pela planilha.</p>
+                                    <form id="import-form" action="{{ url_for('index', project_name=project_name) }}" method="POST" enctype="multipart/form-data">
+                                        <input type="file" name="form_import_master" accept=".xlsx" required style="width: 100%; margin-bottom: 10px; font-size: 11px; padding: 4px;">
+                                        <button type="submit" name="import_master_submit" class="btn btn-outline-primary btn-full" onclick="return confirm('TEM A CERTEZA ABSOLUTA?\n\nIsto irá APAGAR TODOS os dados atuais do projeto.')"><i class="fas fa-upload"></i> Substituir BD</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-container" style="flex: 2;">
+                <div class="card action-box">
+                    <h2><i class="fas fa-industry"></i> Exportação Archestra (IDE)</h2>
+                    <div class="box-content archestra-content">
+                        <form id="archestra-export-form" action="{{ url_for('index', project_name=project_name) }}" method="POST" style="display: flex; flex-direction: column; height: 100%;">
+                            <input type="hidden" name="tipo_filtrado" value="{{ tipo_filtrado or '' }}"><input type="hidden" name="area_filtrada_id" value="{{ area_filtrada_id or '' }}"><input type="hidden" name="unidade_filtrada_id" value="{{ unidade_filtrada_id or '' }}">
+                            <div style="margin-bottom: 20px;">
+                                <label style="font-weight: 600; color: var(--text-secondary);">Caminho Raiz XML:</label>
+                                <input type="text" name="caminho_raiz_steps" value="C:/Steps" required style="width: 98%; padding: 8px; margin-top: 5px; border: 1px solid var(--border-color); border-radius: 3px;">
+                            </div>
+                            <div class="export-grid">
+                                <button type="submit" name="form_gerar_csv" value="exportar" class="btn btn-primary btn-full"><i class="fas fa-file-csv"></i> 1. Phases CSV</button>
+                                <button type="submit" name="form_gerar_zip" value="exportar" class="btn btn-primary btn-full"><i class="fas fa-file-archive"></i> 2. Steps XML</button>
+                                <div class="export-separator">Exportações Complementares (Update Only):</div>
+                                <button type="submit" name="form_gerar_param_csv" value="exportar" class="btn btn-outline-primary btn-full"><i class="fas fa-list"></i> 3. Params CSV</button>
+                                <button type="submit" name="form_gerar_interlock_csv" value="exportar" class="btn btn-outline-primary btn-full"><i class="fas fa-lock"></i> 4. Interlocks CSV</button>
+                                <button type="submit" name="form_gerar_transition_csv" value="exportar" class="btn btn-outline-primary btn-full"><i class="fas fa-random"></i> 5. Transições CSV</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-bar">
+            <div class="filter-item"><label><i class="fas fa-filter"></i> Área</label><form action="{{ url_for('index', project_name=project_name) }}" method="GET" id="form_area"><input type="hidden" name="tipo_filtrado" value="{{ tipo_filtrado or '' }}"><select name="area_filtrada_id" onchange="document.getElementById('form_area').submit()"><option value="">-- Todas --</option>{% for area in todas_areas %}<option value="{{ area.area_id }}" {% if area_filtrada_id == area.area_id %}selected{% endif %}>{{ area.nome_area }}</option>{% endfor %}</select></form></div>
+            <div class="filter-item"><label><i class="fas fa-filter"></i> Unidade</label><form action="{{ url_for('index', project_name=project_name) }}" method="GET" id="form_unidade"><input type="hidden" name="area_filtrada_id" value="{{ area_filtrada_id or '' }}"><input type="hidden" name="tipo_filtrado" value="{{ tipo_filtrado or '' }}"><select name="unidade_filtrada_id" onchange="document.getElementById('form_unidade').submit()"><option value="">-- Todas --</option>{% for unidade in unidades %}<option value="{{ unidade.unidade_id }}" {% if unidade_filtrada_id == unidade.unidade_id %}selected{% endif %}>{{ unidade.nome_unidade }}</option>{% endfor %}</select></form></div>
+            <div class="filter-item"><label><i class="fas fa-tag"></i> Tipo</label><form action="{{ url_for('index', project_name=project_name) }}" method="GET" id="form_tipo"><input type="hidden" name="area_filtrada_id" value="{{ area_filtrada_id or '' }}"><input type="hidden" name="unidade_filtrada_id" value="{{ unidade_filtrada_id or '' }}"><select name="tipo_filtrado" onchange="document.getElementById('form_tipo').submit()"><option value="">-- Todos --</option><option value="OP" {% if tipo_filtrado == 'OP' %}selected{% endif %}>OP</option><option value="UP" {% if tipo_filtrado == 'UP' %}selected{% endif %}>UP</option><option value="PH" {% if tipo_filtrado == 'PH' %}selected{% endif %}>PH</option></select></form></div>
+            <div class="filter-clear"><a href="{{ url_for('index', project_name=project_name) }}" class="btn btn-neutral"><i class="fas fa-times"></i> Limpar</a></div>
+        </div>
+
+        <div class="hierarchy-container">
+            <div class="col card hierarchy-col"><div class="hierarchy-header"><h2>Áreas ({{ todas_areas|length }})</h2><a href="{{ url_for('add_area', project_name=project_name) }}" class="btn btn-neutral btn-sm"><i class="fas fa-plus"></i> Add</a></div><div class="table-wrapper"><table><thead><tr><th>Nome</th><th style="width: 70px;"></th></tr></thead><tbody>{% for area in todas_areas %}<tr><td><strong>{{ area.nome_area }}</strong></td><td style="text-align: right;"><a href="{{ url_for('edit_area', project_name=project_name, area_id=area.area_id) }}" class="btn btn-neutral btn-sm" title="Editar"><i class="fas fa-pen"></i></a><form class="remove-form" action="{{ url_for('index', project_name=project_name) }}" method="POST"><input type="hidden" name="area_id" value="{{ area.area_id }}"><button type="submit" name="form_remove_area" value="remover" class="btn btn-neutral btn-sm danger-hover" title="Remover" onclick="return confirm('Remover Área \'{{ area.nome_area }}\'?')"><i class="fas fa-trash"></i></button></form></td></tr>{% endfor %}</tbody></table></div></div>
+            <div class="col card hierarchy-col"><div class="hierarchy-header"><h2>Unidades ({{ unidades|length }})</h2><a href="{{ url_for('add_unidade', project_name=project_name) }}" class="btn btn-neutral btn-sm"><i class="fas fa-plus"></i> Add</a></div><div class="table-wrapper"><table><thead><tr><th>Nome</th><th>Área</th><th style="width: 70px;"></th></tr></thead><tbody>{% for unidade in unidades %}<tr><td><strong>{{ unidade.nome_unidade }}</strong></td><td style="color: #777;">{{ unidade.area.nome_area }}</td><td style="text-align: right;"><a href="{{ url_for('edit_unidade', project_name=project_name, unidade_id=unidade.unidade_id) }}" class="btn btn-neutral btn-sm" title="Editar"><i class="fas fa-pen"></i></a><form class="remove-form" action="{{ url_for('index', project_name=project_name) }}" method="POST"><input type="hidden" name="unidade_id" value="{{ unidade.unidade_id }}"><button type="submit" name="form_remove_unidade" value="remover" class="btn btn-neutral btn-sm danger-hover" title="Remover" onclick="return confirm('Remover Unidade \'{{ unidade.nome_unidade }}\'?')"><i class="fas fa-trash"></i></button></form></td></tr>{% endfor %}</tbody></table></div></div>
+            <div class="col card hierarchy-col" style="flex: 1.5;"><div class="hierarchy-header"><h2>Phases ({{ phases|length }})</h2><a href="{{ url_for('add_phase', project_name=project_name) }}" class="btn btn-neutral btn-sm"><i class="fas fa-plus"></i> Add</a></div><div class="table-wrapper"><table><thead><tr><th>Nome</th><th>Tipo</th><th>Unidade</th><th style="width: 70px;"></th></tr></thead><tbody>{% for phase in phases %}<tr><td><a href="{{ url_for('phase_detail', project_name=project_name, phase_id=phase.phase_id) }}" style="font-weight: 600; color: var(--primary);">{{ phase.nome_phase }}</a></td><td><span class="type-badge">{{ phase.tipo_phase }}</span></td><td style="color: #777;">{{ phase.unidade.nome_unidade }}</td><td style="text-align: right;"><a href="{{ url_for('edit_phase', project_name=project_name, phase_id=phase.phase_id) }}" class="btn btn-neutral btn-sm" title="Editar"><i class="fas fa-pen"></i></a><form class="remove-form" action="{{ url_for('index', project_name=project_name) }}" method="POST"><input type="hidden" name="phase_id" value="{{ phase.phase_id }}"><button type="submit" name="form_remove_phase" value="remover" class="btn btn-neutral btn-sm danger-hover" title="Remover" onclick="return confirm('Remover Phase \'{{ phase.nome_phase }}\'?')"><i class="fas fa-trash"></i></button></form></td></tr>{% endfor %}</tbody></table></div></div>
+        </div>
+    </div>
+    
+    <script>
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+
+        // Função para MOSTRAR o overlay
+        function showLoading(text) {
+            loadingText.textContent = text || "Processando...";
+            loadingOverlay.classList.add('active');
+        }
+
+        // Função para ESCONDER o overlay
+        function hideLoading() {
+            loadingOverlay.classList.remove('active');
+        }
+
+        // --- Lógica do Cookie de Download (v90) ---
+        
+        // Limpa o cookie ao carregar a página (caso tenha sobrado de um erro)
+        document.cookie = "file_downloaded=; Max-Age=0; path=/";
+
+        function checkDownloadCookie() {
+            if (document.cookie.split(';').some((item) => item.trim().startsWith('file_downloaded=true'))) {
+                hideLoading();
+                // Limpa o cookie para a próxima vez
+                document.cookie = "file_downloaded=; Max-Age=0; path=/";
+            } else {
+                // Continua a verificar no próximo frame de animação
+                requestAnimationFrame(checkDownloadCookie);
+            }
+        }
+        
+        // Listeners para Importação (que recarrega a página, não precisa de cookie)
+        document.getElementById('import-form').addEventListener('submit', () => showLoading("A substituir base de dados..."));
+        document.getElementById('merge-form').addEventListener('submit', () => showLoading("A mesclar dados..."));
+
+        // Listeners para Exportação (que usam o cookie)
+        document.getElementById('master-export-form').addEventListener('submit', () => {
+            showLoading("A gerar Master XLSX...");
+            requestAnimationFrame(checkDownloadCookie); // Inicia o verificador
+        });
+
+        document.getElementById('archestra-export-form').addEventListener('submit', (e) => {
+            // e.submitter é o botão que foi clicado
+            const buttonName = e.submitter ? e.submitter.name : 'form_gerar_csv';
+            let msg = "A gerar ficheiros Archestra...";
+            if (buttonName === 'form_gerar_zip') msg = "A gerar Steps XML (ZIP)...";
+            if (buttonName === 'form_gerar_transition_csv') msg = "A gerar Transições CSV (Pode demorar)...";
+            
+            showLoading(msg);
+            requestAnimationFrame(checkDownloadCookie); // Inicia o verificador
+        });
+    </script>
+</body>
+</html>

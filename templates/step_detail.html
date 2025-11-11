@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block content %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Editar Passo e Transições</title>
+    <style>
+        /* !!! MUDANÇA AQUI: Fonte Reduzida !!! */
+        body { font-family: sans-serif; margin: 2em; font-size: 80%; } 
+        
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        form { background: #f4f4f4; border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; }
+        form h2 { margin-top: 0; }
+        form div { margin-bottom: 10px; }
+        form label { display: inline-block; width: 120px; }
+        .flash { padding: 10px; margin-bottom: 15px; border-radius: 5px; }
+        .flash.success { background: #d4edda; color: #155724; }
+        .flash.error { background: #f8d7da; color: #721c24; }
+        .separator { border-bottom: 2px solid #000; margin: 40px 0 30px 0; }
+        .remove-btn { background: #dc3545; color: white; border: none; padding: 5px 8px; border-radius: 4px; cursor: pointer; }
+        .remove-form { display: inline; margin: 0; padding: 0; background: none; border: none; }
+        .campo-traducao {
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <p>
+        <a href="/">Dashboard</a> &gt; 
+        <a href="{{ url_for('index', area_filtrada_id=phase.unidade.area_id) }}">Área: {{ phase.unidade.area.nome_area }}</a> &gt; 
+        <a href="{{ url_for('index', unidade_filtrada_id=phase.unidade_id) }}">Unidade: {{ phase.unidade.nome_unidade }}</a> &gt; 
+        <a href="{{ url_for('phase_detail', phase_id=phase.phase_id) }}">Phase: {{ phase.nome_phase }}</a> &gt;
+        <strong>Passo: {{ passo.numero_passo }}</strong>
+    </p>
+    
+    <h1>Editar Passo {{ passo.numero_passo }}</h1>
+    <hr>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form action="{{ url_for('step_detail', passo_id=passo.passo_id) }}" method="POST">
+        <h2>Dados do Passo</h2>
+        <div>
+            <label for="numero_passo">Número Passo:</label>
+            <input type="number" id="numero_passo" name="numero_passo" value="{{ passo.numero_passo }}" required>
+        </div>
+        <div>
+            <label for="codigo_passo">Step Number:</label>
+            <input type="text" id="codigo_passo" name="codigo_passo" value="{{ passo.codigo_passo or '' }}">
+        </div>
+        <hr>
+        <div>
+            <label for="descricao_pt">Descritivo (PT):</label>
+            <input type="text" id="descricao_pt" name="descricao_pt" value="{{ passo.descricao_pt or '' }}" style="width: 400px;">
+        </div>
+         <div>
+            <label for="descricao_en">Descritivo (EN):</label>
+            <input type="text" id="descricao_en" name="descricao_en" value="{{ passo.descricao_en or '' }}" style="width: 400px;" class="campo-traducao">
+        </div>
+         <div>
+            <label for="descricao_es">Descritivo (ES):</label>
+            <input type="text" id="descricao_es" name="descricao_es" value="{{ passo.descricao_es or '' }}" style="width: 400px;" class="campo-traducao">
+        </div>
+        <button type="submit" name="form_edit_passo" value="atualizar">Salvar Alterações do Passo</button>
+    </form>
+
+    <div class="separator"></div>
+    
+    <form action="{{ url_for('step_detail', passo_id=passo.passo_id) }}" method="POST">
+        <h2>Adicionar Nova Transição</h2>
+        <div>
+            <label for="condicao">Condição (PT):</label>
+            <input type="text" id="condicao" name="condicao" style="width: 400px;" required>
+        </div>
+        <div>
+            <label for="estado_origem">Estado Origem:</label>
+            <input type="text" id="estado_origem" name="estado_origem">
+        </div>
+        <div>
+            <label for="estado_destino">Estado Destino:</label>
+            <input type="text" id="estado_destino" name="estado_destino">
+        </div>
+        <p><small>Traduções (EN/ES) da condição serão geradas automaticamente.</small></p>
+        <button type="submit" name="form_add_transition" value="adicionar">Adicionar Transição</button>
+    </form>
+
+    <h2>Transições Existentes ({{ transitions|length }})</h2>
+    <table>
+        <tr>
+            <th>ID</th> <th>Lógica</th> 
+            <th>Condição (PT)</th> 
+            <th>Condição (EN)</th> 
+            <th>Condição (ES)</th> 
+            <th>Estado Origem</th> 
+            <th>Estado Destino</th> 
+            <th>Ações</th>
+        </tr>
+        {% for trans in transitions %}
+        <tr>
+            <td>{{ trans.condition_id }}</td>
+            <td>{{ trans.condition_logic }}</td>
+            <td>{{ trans.condition_text_pt }}</td>
+            <td>{{ trans.condition_text_en }}</td>
+            <td>{{ trans.condition_text_es }}</td>
+            <td>{{ trans.estado_origem }}</td>
+            <td>{{ trans.estado_destino }}</td>
+            <td>
+                <form class="remove-form" action="{{ url_for('step_detail', passo_id=passo.passo_id) }}" method="POST">
+                    <input type="hidden" name="transition_id" value="{{ trans.condition_id }}">
+                    <button type="submit" name="form_remove_transition" value="remover" class="remove-btn" 
+                            onclick="return confirm('Tem a certeza que quer remover esta transição?')">
+                        Remover
+                    </button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
+
+{% endblock %}

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Adicionar Área</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root { --header-bg: #1b3a57; --primary: #205081; --primary-hover: #163b65; --bg-main: #f6f8fa; --bg-card: #ffffff; --border-color: #d0d7de; --text-primary: #24292f; --text-secondary: #57606a; --success: #2ea44f; --danger: #cf222e; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: var(--bg-main); color: var(--text-primary); font-size: 13px; }
+        .top-bar { background-color: var(--header-bg); color: #fff; padding: 12px 25px; display: flex; align-items: center; border-bottom: 3px solid #3a6ea5; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .top-bar h1 { margin: 0; font-size: 1.4rem; font-weight: 600; display: flex; align-items: center; }
+        .top-bar img { height: 28px; margin-right: 15px; }
+        .top-bar a { color: #fff; text-decoration: none; opacity: 0.9; } .top-bar .separator { margin: 0 12px; opacity: 0.6; }
+        .main-content { padding: 40px 20px; max-width: 600px; margin: 0 auto; }
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); padding: 25px; }
+        .card h2 { margin-top: 0; margin-bottom: 20px; font-size: 1.4rem; color: var(--header-bg); border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 600; color: var(--header-bg); }
+        .form-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 3px; box-sizing: border-box; font-family: inherit; font-size: 14px; }
+        .form-input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(32,80,129,0.1); }
+        .btn { padding: 10px 20px; border: 1px solid var(--border-color); border-radius: 3px; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; transition: 0.1s; }
+        .btn-success { background-color: var(--success); color: #fff; border: none; } .btn-success:hover { background-color: #2a9147; }
+        .btn-neutral { background-color: #fff; color: var(--text-secondary); } .btn-neutral:hover { background-color: #f3f4f6; color: var(--text-primary); }
+        .form-actions { margin-top: 30px; display: flex; justify-content: flex-end; gap: 10px; padding-top: 20px; border-top: 1px solid var(--bg-main); }
+        .flash { padding: 10px 15px; margin-bottom: 20px; border-radius: 3px; font-weight: 500; background: #ffebe9; color: #cf222e; border: 1px solid #ff8182; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <h1>
+            <img src="{{ url_for('static', filename='gea.png') }}" alt="NEAT Logo">
+            <a href="{{ url_for('select_project') }}">Gestor de Projetos NEAT 7</a> <span class="separator">/</span>
+            <a href="{{ url_for('index', project_name=project_name) }}">{{ project_name }}</a> <span class="separator">/</span>
+            Adicionar Área
+        </h1>
+    </div>
+    <div class="main-content">
+        {% with messages = get_flashed_messages() %}{% if messages %}{% for message in messages %}<div class="flash">{{ message }}</div>{% endfor %}{% endif %}{% endwith %}
+        <div class="card">
+            <h2><i class="fas fa-plus-circle"></i> Nova Área</h2>
+            <form method="POST">
+                <div class="form-group">
+                    <label><i class="fas fa-map-marker-alt"></i> Nome da Área:</label>
+                    <input type="text" name="nome_area" class="form-input" required placeholder="Ex: PRE01">
+                </div>
+                <div class="form-actions">
+                    <a href="{{ url_for('index', project_name=project_name) }}" class="btn btn-neutral">Cancelar</a>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Salvar Área</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

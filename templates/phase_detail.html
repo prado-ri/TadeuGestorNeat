@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ phase.nome_phase }} - Detalhes</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* --- CSS GLOBAL (v90) --- */
+        :root { --header-bg: #1b3a57; --primary: #205081; --primary-hover: #163b65; --bg-main: #f6f8fa; --bg-card: #ffffff; --border-color: #d0d7de; --text-primary: #24292f; --text-secondary: #57606a; --success: #2ea44f; --danger: #cf222e; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: var(--bg-main); color: var(--text-primary); font-size: 13px; }
+        .top-bar { background-color: var(--header-bg); color: #fff; padding: 12px 20px; display: flex; align-items: center; border-bottom: 3px solid #3a6ea5; }
+        .top-bar h1 { margin: 0; font-size: 1.2rem; font-weight: 600; display: flex; align-items: center; }
+        .top-bar img { height: 24px; margin-right: 12px; }
+        .top-bar a { color: #fff; text-decoration: none; opacity: 0.9; } .top-bar .separator { margin: 0 10px; opacity: 0.6; }
+        .main-content { padding: 20px; max-width: 98%; margin: 0 auto; }
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); padding: 20px; margin-bottom: 20px; }
+        .btn { padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 3px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; text-decoration: none; color: var(--text-primary); background: #fff; transition: 0.1s; }
+        .btn:hover { background-color: #f3f4f6; }
+        .btn-primary { background-color: var(--primary); color: #fff; border: 1px solid var(--header-bg); } .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-success { background-color: var(--success); color: #fff; border: none; } .btn-success:hover { background-color: #2a9147; }
+        .btn-neutral { background-color: #fff; color: var(--text-secondary); }
+        .flash { padding: 10px 15px; margin-bottom: 20px; border-radius: 3px; font-weight: 500; } .flash.success { background: #dafbe1; color: #1a7f37; border: 1px solid #2ea44f; } .flash.error { background: #ffebe9; color: #cf222e; border: 1px solid #ff8182; }
+
+        /* --- TABS --- */
+        .tabs { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 15px; background: #e6edf5; padding: 0 10px; border-radius: 3px 3px 0 0; }
+        .tab-button { padding: 10px 20px; cursor: pointer; background: transparent; border: none; font-weight: 600; color: var(--text-secondary); border-bottom: 3px solid transparent; transition: all 0.2s; font-size: 13px; }
+        .tab-button:hover { color: var(--primary); background-color: rgba(255,255,255,0.5); }
+        .tab-button.active { color: var(--primary); border-bottom-color: var(--primary); background: #fff; border-radius: 3px 3px 0 0; }
+        .tab-content { display: none; } .tab-content.active { display: block; }
+        .tab-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 8px 12px; background: #f8f9fa; border-radius: 3px; border: 1px solid var(--border-color); }
+
+        /* --- TABELAS HTML --- */
+        .table-scroll { overflow: auto; max-height: 750px; border: 1px solid var(--border-color); border-radius: 3px; }
+        table.data-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; background: #fff; }
+        table.data-table th { 
+            background: #f1f3f5; position: sticky; top: 0; z-index: 10;
+            text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border-color); border-right: 1px solid var(--border-color);
+            color: var(--header-bg); font-weight: 600; white-space: nowrap;
+        }
+        table.data-table td { padding: 4px; border-bottom: 1px solid #eee; border-right: 1px solid #eee; vertical-align: middle; }
+        table.data-table tr:hover td { background-color: #eef6fc; }
+        .col-trans { background-color: #f3f7fa !important; color: var(--text-secondary); }
+        th.col-trans { background-color: #e8eff5 !important; }
+
+        /* Inputs */
+        .grid-input { width: 100%; padding: 5px; border: 1px solid transparent; background: transparent; font-family: inherit; font-size: 12px; border-radius: 2px; box-sizing: border-box; }
+        .grid-input:focus, .grid-input:hover { border-color: var(--primary); background: #fff; outline: none; }
+        .grid-select { padding: 4px; border: 1px solid #d0d7de; border-radius: 2px; font-size: 11px; background: #fff; }
+        
+        /* v90: ALERTA DE DUPLICADOS */
+        .duplicate-error { border: 2px solid var(--danger) !important; background-color: #fff5f5 !important; color: var(--danger) !important; font-weight: bold; }
+
+        /* Colunas Fixas */
+        .sticky-col-1 { position: sticky; left: 0; z-index: 11; background-color: #f9f9f9; border-right: 2px solid var(--border-color) !important; }
+        .sticky-col-2 { position: sticky; left: 50px; z-index: 11; background-color: #f9f9f9; border-right: 2px solid var(--border-color) !important; }
+        th.sticky-col-1, th.sticky-col-2 { z-index: 12; background-color: #e9ecef; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <h1>
+            <img src="{{ url_for('static', filename='gea.png') }}" alt="NEAT Logo">
+            <a href="{{ url_for('select_project') }}">Projetos</a> <span class="separator">/</span>
+            <a href="{{ url_for('index', project_name=project_name) }}">{{ project_name }}</a> <span class="separator">/</span>
+            {{ phase.nome_phase }}
+        </h1>
+    </div>
+
+    <div class="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}{% endif %}{% endwith %}
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0; border: none; padding: 0; font-size: 1.5rem;">
+                    <i class="fas fa-cube"></i> {{ phase.nome_phase }}
+                    <span style="font-size: 0.6em; color: var(--text-secondary); font-weight: normal;">
+                         ({{ phase.unidade.area.nome_area }} / {{ phase.unidade.nome_unidade }})
+                    </span>
+                </h2>
+                <a href="{{ url_for('index', project_name=project_name) }}" class="btn btn-neutral"><i class="fas fa-arrow-left"></i> Voltar ao Dashboard</a>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-button {% if current_tab == 'parametros' %}active{% endif %}" onclick="openTab(event, 'parametros')"><i class="fas fa-list"></i> Parâmetros</button>
+                <button class="tab-button {% if current_tab == 'tab-passos' %}active{% endif %}" onclick="openTab(event, 'tab-passos')"><i class="fas fa-shoe-prints"></i> Passos</button>
+                <button class="tab-button {% if current_tab == 'tab-transicoes' %}active{% endif %}" onclick="openTab(event, 'tab-transicoes')"><i class="fas fa-random"></i> Transições</button>
+                <button class="tab-button {% if current_tab == 'tab-interlocks' %}active{% endif %}" onclick="openTab(event, 'tab-interlocks')"><i class="fas fa-lock"></i> Interlocks</button>
+            </div>
+
+            <div id="parametros" class="tab-content {% if current_tab == 'parametros' %}active{% endif %}">
+                <form method="POST">
+                    <input type="hidden" name="target_tab" value="parametros">
+                    <button type="submit" name="form_salvar_parametros" value="salvar" style="display: none;"></button>
+                    <div class="tab-actions">
+                        <span><strong><i class="fas fa-edit"></i> Parâmetros</strong></span>
+                        <button type="submit" name="form_salvar_parametros" value="salvar" class="btn btn-success"><i class="fas fa-save"></i> Salvar Parâmetros</button>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px; text-align: center;">Núm</th><th>Classe</th><th>Tipo</th>
+                                    <th style="min-width: 250px;">Descrição (PT)</th>
+                                    <th class="col-trans" style="min-width: 250px;">Descrição (EN)</th>
+                                    <th class="col-trans" style="min-width: 250px;">Descrição (ES)</th>
+                                    <th>Default</th><th>Min</th><th>Max</th><th>Un. Eng.</th>
+                                    <th style="width: 30px; text-align: center;" title="Apagar"><i class="fas fa-trash-alt"></i></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in parametros %}
+                                <tr>
+                                    <input type="hidden" name="param_id" value="{{ p.param_id }}">
+                                    <td><input type="number" name="numero_param_{{ p.param_id }}" value="{{ p.numero_param }}" class="grid-input" style="text-align: center;"></td>
+                                    <td><select name="classe_param_{{ p.param_id }}" class="grid-select"><option value="PE" {% if p.classe_param=='PE'%}selected{%endif%}>PE</option><option value="PA" {% if p.classe_param=='PA'%}selected{%endif%}>PA</option></select></td>
+                                    <td><select name="tipo_dado_{{ p.param_id }}" class="grid-select"><option value="real" {% if p.tipo_dado=='real'%}selected{%endif%}>Real</option><option value="inteiro" {% if p.tipo_dado=='inteiro'%}selected{%endif%}>Int</option><option value="bool" {% if p.tipo_dado=='bool'%}selected{%endif%}>Bool</option></select></td>
+                                    <td><input type="text" name="descricao_pt_{{ p.param_id }}" value="{{ p.descricao_pt or '' }}" class="grid-input"></td>
+                                    <td class="col-trans"><input type="text" name="descricao_en_{{ p.param_id }}" value="{{ p.descricao_en or '' }}" class="grid-input"></td>
+                                    <td class="col-trans"><input type="text" name="descricao_es_{{ p.param_id }}" value="{{ p.descricao_es or '' }}" class="grid-input"></td>
+                                    <td><input type="text" name="valor_default_{{ p.param_id }}" value="{{ p.valor_default or '' }}" class="grid-input" style="width: 80px;"></td>
+                                    <td><input type="text" name="valor_min_{{ p.param_id }}" value="{{ p.valor_min or '' }}" class="grid-input" style="width: 60px;"></td>
+                                    <td><input type="text" name="valor_max_{{ p.param_id }}" value="{{ p.valor_max or '' }}" class="grid-input" style="width: 60px;"></td>
+                                    <td><input type="text" name="unidade_engenharia_{{ p.param_id }}" value="{{ p.unidade_engenharia or '' }}" class="grid-input" style="width: 60px;"></td>
+                                    <td style="text-align: center;"><input type="checkbox" name="delete_param_{{ p.param_id }}"></td>
+                                </tr>
+                                {% endfor %}
+                                {% for i in range(5) %}
+                                <tr style="background-color: #f9fff9;">
+                                    <td><input type="number" name="numero_param_new" class="grid-input" placeholder="+" style="text-align: center;"></td>
+                                    <td><select name="classe_param_new" class="grid-select"><option value="PE" {% if last_classe=='PE'%}selected{%endif%}>PE</option><option value="PA" {% if last_classe=='PA'%}selected{%endif%}>PA</option></select></td>
+                                    <td><select name="tipo_dado_new" class="grid-select"><option value="real">Real</option><option value="inteiro">Int</option><option value="bool">Bool</option></select></td>
+                                    <td><input type="text" name="descricao_pt_new" class="grid-input" placeholder="Nova Descrição PT"></td>
+                                    <td class="col-trans" colspan="2" style="color: #aaa; text-align: center; font-size: 0.9em;">(Auto-tradução ao salvar)</td>
+                                    <td><input type="text" name="valor_default_new" class="grid-input"></td>
+                                    <td><input type="text" name="valor_min_new" class="grid-input"></td>
+                                    <td><input type="text" name="valor_max_new" class="grid-input"></td>
+                                    <td><input type="text" name="unidade_engenharia_new" class="grid-input"></td>
+                                    <td></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+
+            <div id="tab-passos" class="tab-content {% if current_tab == 'tab-passos' %}active{% endif %}">
+                <form method="POST">
+                    <input type="hidden" name="target_tab" value="tab-passos">
+                    <button type="submit" name="form_salvar_passos" value="salvar" style="display: none;"></button>
+
+                    <div class="tab-actions">
+                        <span><strong><i class="fas fa-shoe-prints"></i> Passos (0-49)</strong></span>
+                        <div>
+                            <label>Mostrar: </label>
+                            <input type="number" name="grelha_start" value="0" min="0" max="49" style="width: 50px;" class="grid-select"> até 
+                            <input type="number" name="grelha_end" value="50" min="1" max="50" style="width: 50px;" class="grid-select">
+                            <button type="submit" class="btn btn-neutral btn-sm"><i class="fas fa-sync"></i> Atualizar</button>
+                        </div>
+                        <button type="submit" name="form_salvar_passos" value="salvar" class="btn btn-success"><i class="fas fa-save"></i> Salvar Passos</button>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px; text-align: center;">Idx</th>
+                                    <th style="width: 100px;">Step Num</th>
+                                    <th style="min-width: 300px;">Descrição (PT)</th>
+                                    <th class="col-trans" style="min-width: 300px;">Descrição (EN)</th>
+                                    <th class="col-trans" style="min-width: 300px;">Descrição (ES)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for i in range(50) %}
+                                {% set p = passos_dict.get(i) %}
+                                <tr>
+                                    <td style="text-align: center; font-weight: bold; background: #f8f9fa;">{{ i }}</td>
+                                    <td><input type="text" name="codigo_passo_{{ i }}" value="{{ p.codigo_passo if p and p.codigo_passo else '' }}" class="grid-input step-num-input" style="text-align: center;" oninput="checkDuplicateSteps()"></td>
+                                    <td><input type="text" name="descricao_pt_{{ i }}" value="{{ p.descricao_pt if p and p.descricao_pt else '' }}" class="grid-input"></td>
+                                    <td class="col-trans"><input type="text" name="descricao_en_{{ i }}" value="{{ p.descricao_en if p and p.descricao_en else '' }}" class="grid-input"></td>
+                                    <td class="col-trans"><input type="text" name="descricao_es_{{ i }}" value="{{ p.descricao_es if p and p.descricao_es else '' }}" class="grid-input"></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+
+            <div id="tab-transicoes" class="tab-content {% if current_tab == 'tab-transicoes' %}active{% endif %}">
+                <form method="POST">
+                    <input type="hidden" name="target_tab" value="tab-transicoes">
+                    <button type="submit" name="form_salvar_transicoes" value="salvar" style="display: none;"></button>
+
+                    <div class="tab-actions">
+                        <span><strong><i class="fas fa-random"></i> Matriz de Transições (32x32)</strong></span>
+                        <button type="submit" name="form_salvar_transicoes" value="salvar" class="btn btn-success"><i class="fas fa-save"></i> Salvar Transições</button>
+                    </div>
+                    <div class="table-scroll" style="max-height: 800px;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th class="sticky-col-1" style="min-width: 50px; text-align: center;">Bit</th>
+                                    <th class="sticky-col-2" style="min-width: 220px;">Descrição da Linha (PT)</th>
+                                    {% for s in range(32) %}
+                                    <th style="min-width: 360px; text-align: center; background-color: #eef2f7;">Step Running {{ s }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in range(32) %}
+                                <tr>
+                                    <td class="sticky-col-1" style="text-align: center; font-weight: bold;">{{ r }}</td>
+                                    <td class="sticky-col-2"><input type="text" name="trans_row_desc_pt_{{ r }}" value="{{ trans_row_descs[r].descricao_pt if trans_row_descs[r] else '' }}" class="grid-input" placeholder="Desc. do Bit {{ r }}"></td>
+                                    {% for s in range(32) %}
+                                        {% set c = trans_grelha.get(s, {}).get(r) %}
+                                        <td style="border-right: 1px dashed #d0d7de;">
+                                            <div style="display: flex;">
+                                                <input type="text" name="trans_text_pt_{{ s }}_{{ r }}" value="{{ c.condition_text_pt if c else '' }}" class="grid-input" style="font-family: monospace; font-size: 11px;" title="Condição Passo {{ s }}, Bit {{ r }}">
+                                                <select name="trans_logic_{{ s }}_{{ r }}" id="logic-{{ s }}-{{ r }}" class="grid-select" style="width: 55px; border-left: 1px solid #eee; font-weight: bold;" onchange="updateTransitionState({{ s }}, {{ r }})">
+                                                    <option value="N/A" {% if not c or c.condition_logic == 'N/A' %}selected{% endif %} style="color: #ccc;">-</option>
+                                                    <option value="AND" {% if c and c.condition_logic == 'AND' %}selected{% endif %} style="color: blue;">AND</option>
+                                                    <option value="OR" {% if c and c.condition_logic == 'OR' %}selected{% endif %} style="color: green;">OR</option>
+                                                </select>
+                                            </div>
+                                        </td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+
+            <div id="tab-interlocks" class="tab-content {% if current_tab == 'tab-interlocks' %}active{% endif %}">
+                <form method="POST">
+                    <input type="hidden" name="target_tab" value="tab-interlocks">
+                    <button type="submit" name="form_salvar_interlocks" value="salvar" style="display: none;"></button>
+
+                    <div class="tab-actions">
+                        <span><strong><i class="fas fa-lock"></i> Interlocks (Bits 0-31)</strong></span>
+                        <button type="submit" name="form_salvar_interlocks" value="salvar" class="btn btn-success"><i class="fas fa-save"></i> Salvar Interlocks</button>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="data-table" style="max-width: 1200px;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px; text-align: center;">Bit</th>
+                                    <th>Segurança (PT)</th>
+                                    <th class="col-trans">Segurança (EN)</th>
+                                    <th class="col-trans">Segurança (ES)</th>
+                                    <th>Processo (PT)</th>
+                                    <th class="col-trans">Processo (EN)</th>
+                                    <th class="col-trans">Processo (ES)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for i in range(32) %}
+                                {% set il = interlocks_dict.get(i) %}
+                                <tr>
+                                    <td style="text-align: center; font-weight: bold;">{{ i }}</td>
+                                    <td><input type="text" name="seguranca_pt_{{ i }}" value="{{ il.seguranca_pt if il else '' }}" class="grid-input"></td>
+                                    <td class="col-trans"><input type="text" name="seguranca_en_{{ i }}" value="{{ il.seguranca_en if il else '' }}" class="grid-input"></td>
+                                    <td class="col-trans"><input type="text" name="seguranca_es_{{ i }}" value="{{ il.seguranca_es if il else '' }}" class="grid-input"></td>
+                                    <td><input type="text" name="processo_pt_{{ i }}" value="{{ il.processo_pt if il else '' }}" class="grid-input"></td>
+                                    <td class="col-trans"><input type="text" name="processo_en_{{ i }}" value="{{ il.processo_en if il else '' }}" class="grid-input"></td>
+                                    <td class="col-trans"><input type="text" name="processo_es_{{ i }}" value="{{ il.processo_es if il else '' }}" class="grid-input"></td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+                tabcontent[i].classList.remove('active');
+            }
+            tablinks = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            document.getElementById(tabName).classList.add('active');
+            evt.currentTarget.className += " active";
+            
+            // v90: Se abriu a aba de passos, verifica duplicados
+            if (tabName === 'tab-passos') {
+                checkDuplicateSteps();
+            }
+        }
+
+        function updateTransitionState(passoNum, rowNum) {
+            if (rowNum < 31) {
+                var current = document.getElementById(`logic-${passoNum}-${rowNum}`);
+                var next = document.getElementById(`logic-${passoNum}-${rowNum + 1}`);
+                if (current && next) {
+                    next.style.visibility = (current.value === 'AND' || current.value === 'OR') ? 'visible' : 'hidden';
+                }
+            }
+        }
+
+        function initializeTransitionGridState() {
+            for (var s = 0; s < 32; s++) {
+                var first = document.getElementById(`logic-${s}-0`);
+                if (first) first.style.visibility = 'visible';
+                for (var r = 0; r < 31; r++) updateTransitionState(s, r);
+            }
+        }
+
+        // --- NOVO (v90): Deteção de Step Num duplicados ---
+        function checkDuplicateSteps() {
+            const inputs = document.querySelectorAll('.step-num-input');
+            const counts = {};
+            // 1. Conta ocorrências
+            inputs.forEach(inp => {
+                const val = inp.value.trim();
+                // Só conta valores não vazios
+                if (val) {
+                    counts[val] = (counts[val] || 0) + 1;
+                }
+            });
+            // 2. Aplica ou remove a classe de erro
+            inputs.forEach(inp => {
+                const val = inp.value.trim();
+                if (val && counts[val] > 1) {
+                    inp.classList.add('duplicate-error');
+                    inp.title = "ERRO: Este Step Number está duplicado na tabela.";
+                } else {
+                    inp.classList.remove('duplicate-error');
+                    inp.title = "";
+                }
+            });
+        }
+        // --- FIM (v90) ---
+
+        document.addEventListener("DOMContentLoaded", function() {
+            // Lógica para abrir a aba correta (vinda do v89)
+            const initialTab = "{{ current_tab }}";
+            const btn = document.querySelector(`.tab-button[onclick*="'${initialTab}'"]`);
+            if (btn) {
+                btn.click();
+            } else {
+                // Fallback para a primeira aba se 'current_tab' não for encontrado
+                document.querySelector('.tab-button').click();
+            }
+            
+            initializeTransitionGridState();
+            checkDuplicateSteps(); // Verifica duplicados ao carregar
+        });
+    </script>
+</body>
+</html>
